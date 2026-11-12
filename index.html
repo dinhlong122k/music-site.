@@ -4,46 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!--
-    CSP: chỉ cho phép tải script/khung/ảnh/kết nối từ đúng những nơi cần thiết.
-    Mục đích: nếu lỡ có lỗ hổng, kẻ xấu cũng khó chạy mã lạ hoặc gửi key đi nơi khác.
-    - connect-src chỉ có www.googleapis.com => key không thể gửi tới domain khác.
+    CSP: mọi thứ chỉ tải/kết nối trong CÙNG domain ('self').
+    Đây chính là điều giúp vượt tường lửa: trang không gọi ra youtube.com hay googleapis.com nữa.
+    - connect-src 'self': fetch chỉ tới /api/* của chính site.
+    - media-src 'self': thẻ <audio> chỉ phát từ /api/proxy (cùng domain).
+    - img-src 'self' data: : không tải ảnh bìa từ host ngoài.
     - Không có 'unsafe-inline', 'unsafe-eval' hay dấu * ở bất kỳ nguồn nào.
-    - Đừng thêm Referrer-Policy: no-referrer, vì API (khi key giới hạn referrer) và trình phát nhúng cần Referer.
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.youtube.com/iframe_api https://www.youtube.com/s/player/ https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; connect-src https://www.googleapis.com; img-src 'self' https://i.ytimg.com data:; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <title>Nghe nhạc</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Thanh trên cùng: tên site và nút đổi/xoá key -->
+  <!-- Thanh trên cùng: tên site -->
   <header class="topbar">
     <h1>Nghe nhạc</h1>
-    <button id="reset-key-button" type="button" class="link-button" hidden>Đổi / Xoá key</button>
   </header>
 
   <!-- Vùng thông báo lỗi/trạng thái (đọc được bằng trình đọc màn hình) -->
   <p id="status" class="status" role="status" aria-live="polite"></p>
 
-  <!-- Màn hình 1: nhập key (hiện khi chưa có key) -->
-  <main id="key-screen" class="key-screen" hidden>
-    <h2>Nhập YouTube API key</h2>
-    <p>Site này cần một API key của riêng bạn để tìm bài và tải playlist. Key chỉ được lưu trên máy bạn và chỉ gửi tới Google.</p>
-    <ol class="steps">
-      <li>Vào Google Cloud Console, tạo project và bật "YouTube Data API v3".</li>
-      <li>Tạo một API key.</li>
-      <li>Giới hạn API: chỉ chọn "YouTube Data API v3".</li>
-      <li>Giới hạn ứng dụng: chọn "HTTP referrer" và thêm <code>https://TEN-BAN.github.io/*</code> (thêm <code>http://localhost:*/*</code> nếu chạy thử ở máy).</li>
-    </ol>
-    <form id="key-form" class="row">
-      <label for="key-input" class="visually-hidden">API key</label>
-      <input id="key-input" type="password" autocomplete="off" placeholder="Dán API key vào đây">
-      <button type="submit">Lưu</button>
-    </form>
-    <p id="key-error" class="status-error" role="alert"></p>
-  </main>
-
-  <!-- Màn hình 2: giao diện chính, hai cột -->
-  <main id="main-screen" class="layout" hidden>
+  <!-- Giao diện chính, hai cột -->
+  <main id="main-screen" class="layout">
     <!-- Cột trái: nhập playlist, tìm bài, kết quả -->
     <section class="column">
       <form id="playlist-form" class="row">
@@ -64,8 +46,8 @@
 
     <!-- Cột phải: trình phát, nút điều khiển, danh sách đang phát -->
     <section class="column">
-      <!-- Khung trình phát luôn hiện, tối thiểu 200x200 (CSS) theo điều khoản YouTube -->
-      <div class="player-box"><div id="player"></div></div>
+      <!-- Trình phát: thẻ audio cùng domain (nguồn là /api/proxy). controls có sẵn thanh tua. -->
+      <audio id="audio-player" class="audio-player" controls preload="none"></audio>
       <div class="controls">
         <button id="prev-button" type="button" title="Bài trước" aria-label="Bài trước">⏮</button>
         <button id="toggle-button" type="button" title="Phát / Dừng" aria-label="Phát hoặc dừng">⏯</button>

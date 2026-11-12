@@ -1,92 +1,68 @@
-// player.js - bọc YouTube IFrame Player API.
+// player.js - bọc thẻ <audio> HTML5 để phần còn lại của app không cần biết chi tiết phát nhạc.
 //
-// Vì sao bọc: phần còn lại của app không cần biết chi tiết của API YouTube.
-// Ta phát từng video theo videoId (không dùng chế độ playlist của YouTube)
-// để thứ tự do site điều khiển.
+// Khác bản YouTube cũ (IFrame API): nguồn nhạc là một URL audio cùng domain (/api/proxy...).
+// Thẻ <audio> luôn "sẵn sàng" ngay (là phần tử DOM), nên không còn màn chờ khởi động trình phát.
 import { isValidId } from './validate.js';
 
-const IFRAME_API_URL = 'https://www.youtube.com/iframe_api';
+// Tạo trình phát quanh phần tử <audio> có sẵn.
+// callbacks: {
+//   resolveStreamUrl(videoId) -> Promise<string>  (lấy URL audio; ném lỗi nếu không được)
+//   onEnded(), onError(code, wasRequested), onPlaying()
+// }
+export function createPlayer(audioEl, callbacks) {
+  // Mỗi lần play tăng token; kết quả tải cũ (đến muộn) bị bỏ để không "nhảy" bài.
+  let token = 0;
+  // loaded = đã gán nguồn cho một bài; để lỗi lúc chưa có nguồn không bị hiểu nhầm là bài lỗi.
+  let loaded = false;
 
-// Mã trạng thái của YouTube (YT.PlayerState).
-const STATE_ENDED = 0;
-const STATE_PLAYING = 1;
-const STATE_BUFFERING = 3; // đang đệm: người dùng coi như "đang phát"
+  audioEl.addEventListener('ended', () => callbacks.onEnded());
+  audioEl.addEventListener('playing', () => callbacks.onPlaying());
+  audioEl.addEventListener('error', () => {
+    if (loaded && audioEl.error) callbacks.onError('audio', true);
+  });
 
-let apiPromise = null;
+  function hasSource() {
+    return loaded && Boolean(audioEl.getAttribute('src'));
+  }
 
-// Nạp script IFrame API đúng một lần. Script này gọi window.onYouTubeIframeAPIReady khi sẵn sàng.
-function loadIframeApi() {
-  if (apiPromise) return apiPromise;
-  apiPromise = new Promise((resolve, reject) => {
-    if (window.YT && window.YT.Player) {
-      resolve(window.YT);
+  async function play(videoId) {
+    // isValidId là lớp phòng thủ cuối trước khi đưa id ra ngoài.
+    if (!isValidId(videoId)) return;
+    const my = ++token;
+    let src;
+    try {
+      src = await callbacks.resolveStreamUrl(videoId);
+    } catch {
+      if (my === token) callbacks.onError('stream', true);
       return;
     }
-    window.onYouTubeIframeAPIReady = () => resolve(window.YT);
-    const script = document.createElement('script');
-    script.src = IFRAME_API_URL;
-    script.onerror = () => {
-      apiPromise = null; // cho phép thử lại lần sau
-      reject(new Error('Không tải được trình phát YouTube.'));
-    };
-    document.head.appendChild(script);
-  });
-  return apiPromise;
-}
-
-// Tạo trình phát trong phần tử có id `containerId`.
-// callbacks: { onEnded(), onError(code, wasRequested), onPlaying() }
-// wasRequested = true nếu video lỗi là video mà app đã yêu cầu PHÁT (play); false nếu chỉ mới hiện sẵn (cue).
-// Trả về các hàm điều khiển. Ném lỗi nếu không tải được API (ví dụ mạng chặn YouTube).
-export async function createPlayer(containerId, callbacks) {
-  const YT = await loadIframeApi();
-
-  // Video gần nhất do app yêu cầu là "phát" hay chỉ "hiện sẵn". Lỗi khi hiện sẵn không được kéo theo tự động chuyển bài.
-  let lastActionWasPlay = false;
-
-  const player = await new Promise((resolve) => {
-    const instance = new YT.Player(containerId, {
-      width: '100%',
-      height: '100%',
-      playerVars: { playsinline: 1, rel: 0, origin: window.location.origin },
-      events: {
-        onReady: () => resolve(instance),
-        onStateChange: (event) => {
-          if (event.data === STATE_ENDED) callbacks.onEnded();
-          if (event.data === STATE_PLAYING) callbacks.onPlaying();
-        },
-        onError: (event) => callbacks.onError(event.data, lastActionWasPlay),
-      },
-    });
-  });
+    if (my !== token) return; // đã có lệnh phát mới hơn
+    loaded = true;
+    audioEl.src = src;
+    audioEl.load();
+    // Trình duyệt có thể chặn tự phát; khi đó người dùng bấm Phát là chạy, không coi là lỗi.
+    audioEl.play().catch(() => {});
+  }
 
   return {
-    // Phát ngay một video.
-    // isValidId ở đây là lớp phòng thủ cuối: videoId đã được kiểm tra khi vào danh sách,
-    // nhưng đây là nơi duy nhất đưa chuỗi vào API của YouTube nên kiểm tra thêm cho chắc.
-    play(videoId) {
-      if (!isValidId(videoId)) return;
-      lastActionWasPlay = true;
-      player.loadVideoById(videoId);
-    },
-    // Chỉ hiện sẵn video, không phát (dùng khi tải lại trang vì trình duyệt chặn tự phát).
-    cue(videoId) {
-      if (!isValidId(videoId)) return;
-      lastActionWasPlay = false;
-      player.cueVideoById(videoId);
-    },
-    // Phát <-> dừng.
+    play,
+    hasSource,
+    // Phát <-> dừng. Trả false nếu chưa có nguồn (app sẽ tự nạp bài hiện tại).
     togglePause() {
-      const state = player.getPlayerState();
-      if (state === STATE_PLAYING || state === STATE_BUFFERING) player.pauseVideo();
-      else player.playVideo();
+      if (!hasSource()) return false;
+      if (audioEl.paused) audioEl.play().catch(() => {});
+      else audioEl.pause();
+      return true;
     },
-    // Tạm dừng, giữ nguyên vị trí (dùng khi ẩn trình phát).
     pause() {
-      player.pauseVideo();
+      audioEl.pause();
     },
     stop() {
-      player.stopVideo();
+      token += 1; // huỷ mọi lần tải đang chờ
+      loaded = false;
+      audioEl.pause();
+      audioEl.removeAttribute('src');
+      audioEl.load();
     },
   };
 }

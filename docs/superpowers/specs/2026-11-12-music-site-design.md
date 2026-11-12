@@ -2,6 +2,11 @@
 
 Ngày: 2026-11-12. Trạng thái: đã duyệt trong chat.
 
+> **Lưu ý (cập nhật sau):** Thiết kế GỐC này dùng YouTube Data API + IFrame player trên GitHub
+> Pages (mỗi người tự dán API key). Sau đó dự án đã **chuyển sang Cloudflare Pages + Piped proxy**
+> để vượt tường lửa công ty (không cần API key, trình duyệt chỉ gọi `*.pages.dev`). Kiến trúc
+> hiện tại xem ở `README.md`. Tài liệu này giữ lại để tham khảo lịch sử.
+
 ## 1. Mục đích
 
 Website nghe nhạc riêng, chạy trên máy tính, deploy miễn phí trên GitHub Pages.

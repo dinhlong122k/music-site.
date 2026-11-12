@@ -1,118 +1,157 @@
-# Nghe nhạc (website tĩnh dùng YouTube)
+# Nghe nhạc (chạy trên Cloudflare Pages, vượt tường lửa)
 
-Website nghe nhạc riêng cho bạn và vài người quen, chạy trên máy tính.
+Website nghe nhạc riêng, chạy trên **Cloudflare Pages**. Thiết kế để dùng được sau tường lửa
+công ty (FortiGate) hay chặn `youtube.com` / `googleapis.com`.
+
+**Vì sao vượt được tường lửa:** trình duyệt CHỈ nói chuyện với domain của chính site
+(`*.pages.dev` hoặc tên miền riêng). Mọi việc tìm bài, lấy luồng nhạc và tải nhạc đều đi qua
+**Cloudflare Pages Functions** (`/api/*`). Các Function này mới là nơi gọi ra Piped / YouTube —
+chạy trên máy chủ Cloudflare, không phải trên máy bạn.
 
 - Dán link playlist YouTube, hoặc gõ tên bài để tìm, rồi phát.
-- Chỉ có HTML, CSS, JavaScript thuần. Không backend, không database, không bước build.
-- **Không có API key nào trong code.** Mỗi người tự dán key của mình vào trang; key chỉ lưu trên trình duyệt của người đó và chỉ gửi tới `https://www.googleapis.com`.
-- Trình phát YouTube luôn hiện (tối thiểu 200x200 px). Site không phát nhạc khi mạng chặn YouTube, đó là hành vi đúng.
+- **Không cần API key.** Dùng mạng Piped công cộng (được proxy qua `/api`), không cần tài khoản Google.
+- Frontend chỉ có HTML/CSS/JS thuần; backend là vài file Function nhỏ. Không có bước build.
+- Không tải ảnh bìa (giữ đúng nguyên tắc "chỉ cùng domain"). Giao diện hiện ô trống thay ảnh.
 
-## 1. Chạy thử ở máy
-
-Cần cài Python hoặc Node.js (một trong hai là đủ).
-
-Mở terminal (PowerShell) trong thư mục dự án rồi chạy MỘT trong hai lệnh:
+## 1. Luồng dữ liệu
 
 ```
-python -m http.server 8080
+Trình duyệt (chỉ gọi *.pages.dev)
+   │  GET /api/search?q=...        → Function gọi Piped /search          → danh sách bài
+   │  GET /api/playlist?id=...     → Function gọi Piped /playlists/{id}  → bài trong playlist
+   │  GET /api/stream?id=VIDEO_ID  → Function gọi Piped /streams/{id}    → chọn audio tốt nhất
+   │                                 trả link đã bọc: /api/proxy?url=...
+   └  <audio src="/api/proxy?...">  → Function tải nhạc hộ (hỗ trợ tua)  → phát
 ```
 
-hoặc
+## 2. Cấu trúc code
 
-```
-npx serve
-```
+| File | Việc của nó |
+| --- | --- |
+| `index.html` | Khung trang và CSP (chỉ cho tải/kết nối cùng domain) |
+| `css/style.css` | Giao diện hai cột |
+| `js/app.js` | Khởi động, nối các phần với nhau |
+| `js/piped-api.js` | Gọi `/api/*` (cùng domain), đổi lỗi thành tiếng Việt |
+| `js/player.js` | Bọc thẻ `<audio>` HTML5 |
+| `js/ui.js` | Vẽ giao diện, gắn sự kiện (chỉ `textContent`, không `innerHTML`) |
+| `js/queue.js` | Logic danh sách phát (không đụng giao diện) |
+| `js/storage.js` | Đọc/ghi `localStorage` an toàn (danh sách + chế độ lặp) |
+| `js/validate.js` | Kiểm tra ID, tạo bài hát an toàn |
+| `js/url-parser.js` | Tách playlistId từ link YouTube |
+| `functions/api/_piped.js` | Dùng chung: danh sách instance, gọi Piped, chuẩn hoá, chặn proxy mở |
+| `functions/api/search.js` | `GET /api/search?q=` |
+| `functions/api/stream.js` | `GET /api/stream?id=` |
+| `functions/api/proxy.js` | `GET /api/proxy?url=` (truyền luồng nhạc, hỗ trợ Range để tua) |
+| `functions/api/playlist.js` | `GET /api/playlist?id=` |
+| `tests/` | Test bằng `node --test` |
 
-Mở trình duyệt vào `http://localhost:8080` (với `npx serve` thì dùng địa chỉ mà lệnh in ra). Lần đầu bạn sẽ thấy màn hình nhập key.
+## 3. Chạy test
 
-**Mở `index.html` bằng cách bấm đúp (địa chỉ `file://...`) sẽ KHÔNG chạy được**: trình duyệt chặn JavaScript dạng module từ `file://`, và key bị giới hạn theo referrer cũng không khớp. Luôn dùng máy chủ cục bộ như trên.
-
-Khi chạy thử ở máy, hãy tạo một **key riêng chỉ để thử** (xem mục 2) và dán key đó vào trang `localhost`; đừng dùng key thật của site đã đưa lên mạng.
-
-Chạy test (cần Node.js 18 trở lên):
+Cần Node.js 18 trở lên:
 
 ```
 node --test
 ```
 
-## 2. Tạo API key và giới hạn nó (từng bước)
+## 4. Chạy thử ở máy (tuỳ chọn)
 
-1. Vào https://console.cloud.google.com và đăng nhập tài khoản Google.
-2. Bấm chọn project ở thanh trên, chọn **Dự án mới (New project)**, đặt tên (ví dụ `music-site`), bấm **Tạo**.
-3. Vào menu **APIs & Services > Library**, tìm **YouTube Data API v3**, bấm **Enable (Bật)**.
-4. Vào **APIs & Services > Credentials**, bấm **Create credentials > API key**. Google sẽ hiện key, hãy giữ trang này mở.
-5. Bấm **Edit API key** (hoặc tên key) để giới hạn. Việc này RẤT quan trọng, vì key sẽ nằm trong trình duyệt:
-   - **API restrictions**: chọn **Restrict key**, chỉ tick **YouTube Data API v3**.
-   - **Application restrictions**: chọn **Websites (HTTP referrers)**, rồi thêm:
-     - `https://TEN-BAN.github.io/*` (thay `TEN-BAN` bằng tên tài khoản GitHub của bạn)
-   - KHÔNG thêm `http://localhost:*/*` vào key thật. Cho phép localhost nghĩa là bất kỳ ai chạy một trang trên máy của họ cũng dùng được key của bạn. Muốn thử ở máy thì tạo một key thứ hai (bước 4), giới hạn **API restrictions** giống key thật, chỉ thêm referrer `http://localhost:*/*`, dùng xong thì xoá key đó.
-6. Bấm **Save**. Có thể mất vài phút để giới hạn có hiệu lực.
-7. Mở site, dán key vào ô nhập key và bấm **Lưu**.
+Pages Functions cần `wrangler` để chạy local (chỉ mở `index.html` bằng Python/Node thường sẽ
+KHÔNG có `/api/*`, nên không phát được nhạc). Cần Node.js:
 
-Hạn mức miễn phí: 10.000 đơn vị mỗi ngày cho mỗi key. Mỗi lần tìm bài tốn 100 đơn vị (khoảng 100 lần tìm/ngày), mỗi trang playlist (50 bài) tốn 1 đơn vị.
+```
+npx wrangler pages dev .
+```
 
-Nếu muốn dùng key khác: bấm **Đổi / Xoá key** ở góc trên bên phải. Danh sách đang phát vẫn được giữ (nhạc đang phát sẽ được tạm dừng).
+Mở địa chỉ mà lệnh in ra (thường `http://localhost:8788`). Lệnh này chạy cả trang tĩnh lẫn các
+Function trong `functions/`.
 
-### Thu hồi hoặc đổi key (khi nghi key bị lộ)
+## 5. Đưa lên Cloudflare Pages (từng bước)
 
-1. Vào https://console.cloud.google.com, chọn đúng project, vào **APIs & Services > Credentials**.
-2. Muốn đổi key: bấm tên key, bấm **Regenerate key (Tạo lại key)** nếu có, hoặc tạo key mới (**Create credentials > API key**) và áp giới hạn như mục 2.
-3. Bấm biểu tượng thùng rác ở key cũ (**Delete**) để thu hồi ngay; key cũ lập tức vô dụng.
-4. Mở site, bấm **Đổi / Xoá key** và dán key mới. Key đã dán nằm trong `localStorage` của trình duyệt từng người, nên mỗi người dùng chung site phải tự đổi.
+Không có bước build. Có hai cách; chọn một.
 
-### Cảnh báo quan trọng khi dùng GitHub Pages
+### Cách A — nối Git (khuyên dùng, tự deploy khi push)
 
-**Mọi repository GitHub Pages của cùng một tài khoản đều dùng chung một địa chỉ gốc `https://TEN-BAN.github.io`, nên cũng dùng chung `localStorage`.** JavaScript của bất kỳ trang nào trong tài khoản đó đọc được key mà bạn đã dán ở site này.
+1. Đẩy code lên một repository GitHub/GitLab.
+2. Vào https://dash.cloudflare.com → **Workers & Pages** → **Create** → **Pages** →
+   **Connect to Git**, chọn repo.
+3. Ở phần build:
+   - **Framework preset:** None
+   - **Build command:** để TRỐNG
+   - **Build output directory:** `/` (thư mục gốc repo)
+4. Bấm **Save and Deploy**. Vài phút sau có địa chỉ `https://TEN-DU-AN.pages.dev`.
+   Cloudflare tự nhận thư mục `functions/` thành các API `/api/*`.
 
-- Đừng đặt trang khác có chứa JavaScript của bên thứ ba (quảng cáo, thống kê, thư viện lạ) dưới cùng tài khoản GitHub.
-- Tốt nhất dùng một tài khoản hoặc tổ chức (organization) GitHub riêng chỉ cho site này.
-- Key đã giới hạn theo referrer và theo API (mục 2) để hạn chế thiệt hại nếu bị lộ, nhưng không thay thế được các biện pháp trên.
+### Cách B — tải thẳng bằng Wrangler (không cần Git)
 
-### Key gửi bằng header, cần thử một lần với key thật
+```
+npx wrangler pages deploy .
+```
 
-Site gửi key qua header `X-Goog-Api-Key` (không để trong URL). Phần này chưa được thử với key thật trong lúc viết code (các test dùng `fetch` giả). Sau khi dán key thật lần đầu, hãy thử tải một playlist và tìm một bài; nếu báo lỗi key hoặc lỗi mạng dù key đúng, hãy báo lại.
+Làm theo hướng dẫn đăng nhập; chọn/tạo project. Xong sẽ in ra địa chỉ `*.pages.dev`.
 
-## 3. Đưa lên GitHub Pages (từng bước)
+## 6. Kiểm tra thủ công site đã chạy (manual verification)
 
-1. Tạo tài khoản GitHub nếu chưa có, rồi tạo repository mới (ví dụ `music-site`, chế độ Public).
-2. Trong thư mục dự án, mở terminal và chạy lần lượt (thay `TEN-BAN`):
+Sau khi deploy, mở `https://TEN-DU-AN.pages.dev` và kiểm theo thứ tự. Nếu bước nào hỏng, xem
+mục 8 (xử lý sự cố).
+
+1. **Function sống chưa:** mở thẳng `https://TEN-DU-AN.pages.dev/api/search?q=test`.
+   - Mong đợi: JSON `{"items":[...]}` có vài bài.
+   - Nếu ra `{"error":"upstream_failed"}` (mã 502): các instance Piped mặc định đang hỏng → xem mục 7 để đổi.
+2. **Tìm bài:** ở trang, gõ tên một bài hát rồi bấm **Tìm**. Phải thấy danh sách kết quả.
+3. **Phát:** bấm vào một kết quả. Thanh trạng thái chuyển `Đang tải...` → `Đang phát: ...`,
+   và nghe thấy nhạc. (Lần đầu trình duyệt có thể chặn tự phát — bấm nút ▶ trên thanh audio.)
+4. **Tua:** kéo thanh thời gian của trình phát tới giữa bài. Nếu nhảy tới đúng chỗ và phát tiếp
+   là `/api/proxy` đã hỗ trợ Range đúng.
+5. **Playlist:** dán một link `https://www.youtube.com/playlist?list=...` rồi bấm **Tải**.
+   Danh sách bên phải phải đầy bài và tự phát bài đầu.
+6. **Điều khiển:** thử ⏮ ⏯ ⏭, **Trộn**, **Lặp**.
+7. **Nhớ trạng thái:** tải lại trang (F5). Danh sách và bài hiện tại còn đó (không tự phát — đúng).
+8. **Chạy sau tường lửa:** mở site bằng máy trong mạng công ty. Vì trang chỉ gọi `*.pages.dev`,
+   không gọi `youtube.com`/`googleapis.com`, nên không dính 403 như trước.
+
+Kiểm nhanh bằng DevTools (F12 → tab **Network**): mọi request phải tới chính domain của bạn
+(`/api/search`, `/api/stream`, `/api/proxy`). Không được có request thẳng tới `googlevideo.com`
+hay `youtube.com` từ trình duyệt.
+
+## 7. Đổi máy chủ Piped mà không sửa code
+
+Các instance Piped công cộng hay sập/bảo trì. Nếu `/api/search` trả 502, đổi danh sách bằng
+biến môi trường (không cần sửa code, không cần deploy lại code):
+
+1. Dashboard Cloudflare → project Pages của bạn → **Settings** → **Variables and Secrets**
+   (môi trường **Production**).
+2. Thêm biến tên **`PIPED_INSTANCES`**, giá trị là các URL API ngăn cách bằng dấu phẩy, ví dụ:
 
    ```
-   git init
-   git add .
-   git commit -m "Website nghe nhạc"
-   git branch -M main
-   git remote add origin https://github.com/TEN-BAN/music-site.git
-   git push -u origin main
+   https://pipedapi.kavin.rocks,https://pipedapi.adminforge.de
    ```
 
-3. Trên GitHub, vào repository > **Settings > Pages**.
-4. Ở mục **Build and deployment > Source** chọn **Deploy from a branch**; **Branch** chọn `main`, thư mục `/ (root)`; bấm **Save**.
-5. Đợi khoảng 1-2 phút. Địa chỉ site sẽ là `https://TEN-BAN.github.io/music-site/`.
-6. Quay lại Google Cloud Console, kiểm tra key đã có referrer `https://TEN-BAN.github.io/*` (bước 5 ở phần 2).
+3. **Save**, rồi **Retry deployment** (hoặc deploy lại) để biến có hiệu lực.
 
-Trước khi push, hãy chắc chắn không có key nào nằm trong file. File `.gitignore` đã chặn các file cấu hình local thường gặp.
+Danh sách instance đang sống xem ở: https://github.com/TeamPiped/documentation (hoặc trang
+uptime của TeamPiped). Nhớ dùng host **API** (thường bắt đầu bằng `pipedapi.` hoặc `api.`),
+không phải host giao diện.
 
-## 4. Cấu trúc code
+## 8. Xử lý sự cố
 
-| File | Việc của nó |
-| --- | --- |
-| `index.html` | Khung trang và CSP (giới hạn nguồn tải) |
-| `css/style.css` | Giao diện hai cột |
-| `js/app.js` | Khởi động, nối các phần với nhau |
-| `js/ui.js` | Vẽ giao diện, gắn sự kiện (chỉ dùng `textContent`, không `innerHTML`) |
-| `js/storage.js` | Đọc/ghi `localStorage` an toàn |
-| `js/validate.js` | Kiểm tra ID, URL ảnh, tạo bài hát an toàn |
-| `js/url-parser.js` | Tách playlistId từ link |
-| `js/youtube-api.js` | Gọi YouTube Data API, đổi lỗi thành tiếng Việt |
-| `js/queue.js` | Logic danh sách phát (không đụng giao diện) |
-| `js/player.js` | Bọc YouTube IFrame Player API |
-| `tests/` | Test bằng `node --test` |
+- **Tìm được bài nhưng không phát (lỗi "không phát được"):** instance trả được metadata nhưng
+  luồng audio hỏng. Thử lại, hoặc đổi `PIPED_INSTANCES` (mục 7).
+- **`/api/proxy` trả 403 "Host not allowed":** đúng là tính năng an toàn — proxy chỉ cho tải từ
+  googlevideo / pipedproxy / tên miền instance đã cấu hình. Nếu đổi sang instance có domain proxy
+  lạ, thêm instance đó vào `PIPED_INSTANCES` để domain của nó được cho phép.
+- **Mạng công ty vẫn chặn:** kiểm tra tường lửa có chặn cả `*.pages.dev` không. Nếu có, gắn
+  **tên miền riêng** cho project Pages (Settings → Custom domains) rồi dùng tên miền đó.
 
-## 5. Hành vi cần biết
+## 9. An toàn
 
-- Tải playlist sẽ THAY danh sách đang phát và phát bài đầu; tối đa 500 bài, bài đã xoá/riêng tư bị bỏ.
-- Bấm tên/ảnh ở kết quả tìm kiếm: thêm vào cuối và phát ngay. Bấm `+`: chỉ thêm vào cuối.
-- Trộn: trộn thứ tự danh sách một lần, bài đang phát lên đầu.
-- Lặp: tắt, rồi cả danh sách, rồi một bài, rồi lại tắt.
-- Tải lại trang: nhớ danh sách, bài hiện tại và chế độ lặp, nhưng không tự phát (trình duyệt chặn tự phát).
+- **CSP** chỉ cho `'self'`: trang không thể gọi hay tải từ domain ngoài, kể cả khi có lỗ hổng.
+- **`/api/proxy` KHÔNG phải proxy mở:** chỉ chuyển tiếp tới host trong danh sách cho phép, tránh
+  bị kẻ xấu mượn domain của bạn để proxy nội dung bất kỳ (SSRF).
+- Không có API key, không secret trong code. `.gitignore` chặn các file cấu hình local.
+
+## 10. Hành vi cần biết
+
+- Tải playlist sẽ THAY danh sách đang phát và phát bài đầu; tối đa 500 bài.
+- Bấm tên ở kết quả tìm kiếm: thêm vào cuối và phát ngay. Bấm `+`: chỉ thêm vào cuối.
+- Trộn: trộn thứ tự một lần, bài đang phát lên đầu. Lặp: tắt → cả danh sách → một bài → tắt.
+- Tải lại trang: nhớ danh sách, bài hiện tại và chế độ lặp, nhưng không tự phát (trình duyệt chặn).

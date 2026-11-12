@@ -53,16 +53,8 @@ function createTrackText(track) {
 
 // ---------- Màn hình ----------
 
-export function showKeyScreen() {
-  $('key-screen').hidden = false;
-  $('main-screen').hidden = true;
-  $('reset-key-button').hidden = true;
-}
-
 export function showMainScreen() {
-  $('key-screen').hidden = true;
   $('main-screen').hidden = false;
-  $('reset-key-button').hidden = false;
 }
 
 // ---------- Thông báo ----------
@@ -72,14 +64,6 @@ export function setStatus(message, kind = 'info') {
   const box = $('status');
   box.textContent = message;
   box.className = kind === 'error' ? 'status status-error' : 'status';
-}
-
-export function setKeyError(message) {
-  $('key-error').textContent = message;
-}
-
-export function clearKeyInput() {
-  $('key-input').value = '';
 }
 
 // ---------- Khoá nút khi đang bận ----------
@@ -173,15 +157,9 @@ export function renderRepeat(mode) {
 // ---------- Gắn sự kiện một lần khi khởi động ----------
 
 // Gom mọi sự kiện cố định (form, nút điều khiển) vào một chỗ.
-// handlers: { onSaveKey(key), onResetKey(), onLoadPlaylist(text), onSearch(text),
+// handlers: { onLoadPlaylist(text), onSearch(text),
 //             onPrev(), onToggle(), onNext(), onShuffle(), onRepeat() }
 export function bindEvents(handlers) {
-  $('key-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    handlers.onSaveKey($('key-input').value);
-  });
-  $('reset-key-button').addEventListener('click', handlers.onResetKey);
-
   $('playlist-form').addEventListener('submit', (event) => {
     event.preventDefault();
     handlers.onLoadPlaylist($('playlist-input').value);

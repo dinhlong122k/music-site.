@@ -29,11 +29,6 @@ h2 { font-size: 1rem; margin: 16px 0 8px; color: #b9bcc6; }
 .status { min-height: 1.5em; margin: 8px 20px; color: #9fc5ff; }
 .status-error { color: #ff8a8a; }
 
-/* Màn hình nhập key */
-.key-screen { max-width: 560px; margin: 24px auto; padding: 0 20px; }
-.steps { line-height: 1.6; padding-left: 20px; }
-code { background: #262a31; padding: 1px 5px; border-radius: 4px; }
-
 /* Bố cục hai cột */
 .layout {
   display: grid;
@@ -66,17 +61,8 @@ button {
 button:hover:not(:disabled) { background: #353b46; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.link-button { background: none; border: none; color: #9fc5ff; text-decoration: underline; }
-
-/* Trình phát: luôn hiện, tối thiểu 200x200 px (điều khoản YouTube). */
-.player-box {
-  width: 100%;
-  min-width: 200px;
-  min-height: 200px;
-  aspect-ratio: 16 / 9;
-  background: #000;
-}
-.player-box iframe { width: 100%; height: 100%; min-width: 200px; min-height: 200px; display: block; }
+/* Trình phát: thẻ audio cùng domain, rộng hết cột. */
+.audio-player { width: 100%; display: block; margin-bottom: 4px; }
 
 .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 

@@ -2,11 +2,9 @@
 //
 // Vì sao bọc try/catch: một số trình duyệt/chế độ riêng tư chặn localStorage.
 // Khi đó trang vẫn phải chạy, chỉ là không nhớ được gì.
-// Key API chỉ nằm ở đây (trên máy người dùng), không bao giờ nằm trong code hay repo.
 import { makeTrack } from './validate.js';
 import { REPEAT_MODES } from './queue.js';
 
-const KEY_API = 'musicsite.apiKey';
 const KEY_QUEUE = 'musicsite.queue';
 const KEY_REPEAT = 'musicsite.repeat';
 
@@ -24,29 +22,6 @@ function writeRaw(name, value) {
   } catch {
     // Không lưu được (bị chặn/đầy bộ nhớ) thì chấp nhận: nghe nhạc vẫn chạy, chỉ là lần sau không nhớ.
   }
-}
-
-function removeRaw(name) {
-  try {
-    localStorage.removeItem(name);
-  } catch {
-    // Không xoá được thì thôi: lần đọc sau sẽ gặp lại giá trị cũ, không gây lỗi gì thêm.
-  }
-}
-
-// ---------- Key API ----------
-
-export function loadApiKey() {
-  const value = readRaw(KEY_API);
-  return value && value.trim() ? value.trim() : '';
-}
-
-export function saveApiKey(key) {
-  writeRaw(KEY_API, key.trim());
-}
-
-export function clearApiKey() {
-  removeRaw(KEY_API);
 }
 
 // ---------- Danh sách đang phát ----------
