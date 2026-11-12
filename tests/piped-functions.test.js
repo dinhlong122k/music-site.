@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   getInstances, videoIdFromUrl, mapStreamList, pickBestAudio, buildProxyHostMatcher,
-} from '../functions/api/_piped.js';
+} from '../src/api/_piped.js';
 
 test('getInstances: mặc định khi không có env', () => {
   assert.ok(getInstances().length > 0);

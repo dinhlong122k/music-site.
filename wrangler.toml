@@ -1,7 +1,12 @@
+# Cấu hình Cloudflare Worker (KHÔNG phải Pages).
+# Build của Cloudflare chạy `wrangler deploy`; file này cho nó biết đây là một Worker rõ ràng
+# nên nó không còn chạy heuristic "Pages Functions" và không báo lỗi về thư mục static ở gốc.
 name = "music-site"
+main = "src/index.js"
 compatibility_date = "2026-11-12"
 
-# Dòng này báo cho Cloudflare biết đây là project Pages (không phải Workers).
-# Nhờ nó, Git build chạy `wrangler pages deploy ./public` thay vì `wrangler deploy`.
-# File tĩnh nằm trong ./public; Pages Functions nằm ở thư mục ./functions tại gốc repo.
-pages_build_output_dir = "./public"
+# File tĩnh nằm trong ./public, phục vụ trực tiếp. Request không khớp file nào sẽ vào Worker
+# (src/index.js) để định tuyến /api/*. Worker gọi lại static qua binding ASSETS.
+[assets]
+directory = "./public"
+binding = "ASSETS"

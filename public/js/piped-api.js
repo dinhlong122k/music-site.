@@ -2,7 +2,7 @@
 //
 // Khác bản YouTube cũ: trình duyệt KHÔNG gọi thẳng Google/Piped nữa, mà gọi
 // /api/search, /api/playlist, /api/stream do Cloudflare Pages Functions phục vụ.
-// Nhờ vậy mọi kết nối chỉ tới *.pages.dev => vượt tường lửa (FortiGate), không bị 403.
+// Nhờ vậy mọi kết nối chỉ tới *.workers.dev => vượt tường lửa (FortiGate), không bị 403.
 //
 // Phần "đổi lỗi" và "chuẩn hoá" là hàm thuần, test được bằng `node --test`.
 import { makeTrack } from './validate.js';

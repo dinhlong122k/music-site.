@@ -1,22 +1,22 @@
-# Nghe nhạc (chạy trên Cloudflare Pages, vượt tường lửa)
+# Nghe nhạc (chạy trên Cloudflare Workers, vượt tường lửa)
 
-Website nghe nhạc riêng, chạy trên **Cloudflare Pages**. Thiết kế để dùng được sau tường lửa
-công ty (FortiGate) hay chặn `youtube.com` / `googleapis.com`.
+Website nghe nhạc riêng, chạy trên **Cloudflare Workers** (static assets + một Worker). Thiết kế
+để dùng được sau tường lửa công ty (FortiGate) hay chặn `youtube.com` / `googleapis.com`.
 
 **Vì sao vượt được tường lửa:** trình duyệt CHỈ nói chuyện với domain của chính site
-(`*.pages.dev` hoặc tên miền riêng). Mọi việc tìm bài, lấy luồng nhạc và tải nhạc đều đi qua
-**Cloudflare Pages Functions** (`/api/*`). Các Function này mới là nơi gọi ra Piped / YouTube —
-chạy trên máy chủ Cloudflare, không phải trên máy bạn.
+(`*.workers.dev` hoặc tên miền riêng). Mọi việc tìm bài, lấy luồng nhạc và tải nhạc đều đi qua
+`/api/*` của **Worker** (`src/index.js`). Worker mới là nơi gọi ra Piped / YouTube — chạy trên
+máy chủ Cloudflare, không phải trên máy bạn.
 
 - Dán link playlist YouTube, hoặc gõ tên bài để tìm, rồi phát.
 - **Không cần API key.** Dùng mạng Piped công cộng (được proxy qua `/api`), không cần tài khoản Google.
-- Frontend chỉ có HTML/CSS/JS thuần; backend là vài file Function nhỏ. Không có bước build.
+- Frontend chỉ có HTML/CSS/JS thuần; backend là một Worker nhỏ định tuyến `/api/*`. Không có bước build.
 - Không tải ảnh bìa (giữ đúng nguyên tắc "chỉ cùng domain"). Giao diện hiện ô trống thay ảnh.
 
 ## 1. Luồng dữ liệu
 
 ```
-Trình duyệt (chỉ gọi *.pages.dev)
+Trình duyệt (chỉ gọi *.workers.dev)
    │  GET /api/search?q=...        → Function gọi Piped /search          → danh sách bài
    │  GET /api/playlist?id=...     → Function gọi Piped /playlists/{id}  → bài trong playlist
    │  GET /api/stream?id=VIDEO_ID  → Function gọi Piped /streams/{id}    → chọn audio tốt nhất
@@ -28,7 +28,7 @@ Trình duyệt (chỉ gọi *.pages.dev)
 
 | File | Việc của nó |
 | --- | --- |
-| `public/` | Thư mục file tĩnh Cloudflare Pages phục vụ (`pages_build_output_dir`) |
+| `public/` | Thư mục file tĩnh Worker phục vụ (binding `ASSETS`) |
 | `public/index.html` | Khung trang và CSP (chỉ cho tải/kết nối cùng domain) |
 | `public/css/style.css` | Giao diện hai cột |
 | `public/js/app.js` | Khởi động, nối các phần với nhau |
@@ -38,13 +38,13 @@ Trình duyệt (chỉ gọi *.pages.dev)
 | `public/js/queue.js` | Logic danh sách phát (không đụng giao diện) |
 | `public/js/storage.js` | Đọc/ghi `localStorage` an toàn (danh sách + chế độ lặp) |
 | `public/js/validate.js` | Kiểm tra ID, tạo bài hát an toàn |
-| `public/js/url-parser.js` | Tách playlistId từ link YouTube |
-| `wrangler.toml` | Khai báo project Pages (`pages_build_output_dir = "./public"`) |
-| `functions/api/_piped.js` | Dùng chung: danh sách instance, gọi Piped, chuẩn hoá, chặn proxy mở |
-| `functions/api/search.js` | `GET /api/search?q=` |
-| `functions/api/stream.js` | `GET /api/stream?id=` |
-| `functions/api/proxy.js` | `GET /api/proxy?url=` (truyền luồng nhạc, hỗ trợ Range để tua) |
-| `functions/api/playlist.js` | `GET /api/playlist?id=` |
+| `wrangler.toml` | Cấu hình Worker: `main = src/index.js`, static assets = `./public` |
+| `src/index.js` | Worker entry: phục vụ file tĩnh + định tuyến `/api/*` tới handler |
+| `src/api/_piped.js` | Dùng chung: danh sách instance, gọi Piped, chuẩn hoá, chặn proxy mở |
+| `src/api/search.js` | `GET /api/search?q=` |
+| `src/api/stream.js` | `GET /api/stream?id=` |
+| `src/api/proxy.js` | `GET /api/proxy?url=` (truyền luồng nhạc, hỗ trợ Range để tua) |
+| `src/api/playlist.js` | `GET /api/playlist?id=` |
 | `tests/` | Test bằng `node --test` |
 
 ## 3. Chạy test
@@ -57,51 +57,48 @@ node --test
 
 ## 4. Chạy thử ở máy (tuỳ chọn)
 
-Pages Functions cần `wrangler` để chạy local (chỉ mở `index.html` bằng Python/Node thường sẽ
-KHÔNG có `/api/*`, nên không phát được nhạc). Cần Node.js:
+Worker cần `wrangler` để chạy local (chỉ mở `index.html` bằng Python/Node thường sẽ KHÔNG có
+`/api/*`, nên không phát được nhạc). Cần Node.js:
 
 ```
-npx wrangler pages dev ./public
+npx wrangler dev
 ```
 
-Mở địa chỉ mà lệnh in ra (thường `http://localhost:8788`). Lệnh này chạy cả trang tĩnh lẫn các
-Function trong `functions/`.
+Mở địa chỉ mà lệnh in ra (thường `http://localhost:8787`). Lệnh này chạy cả trang tĩnh (từ
+`./public`) lẫn Worker định tuyến `/api/*`.
 
-## 5. Đưa lên Cloudflare Pages (từng bước)
+## 5. Đưa lên Cloudflare Workers (từng bước)
 
 Không có bước build. Có hai cách; chọn một.
 
 ### Cách A — nối Git (khuyên dùng, tự deploy khi push)
 
 1. Đẩy code lên một repository GitHub/GitLab.
-2. Vào https://dash.cloudflare.com → **Workers & Pages** → **Create** → **Pages** →
-   **Connect to Git**, chọn repo.
-3. Ở phần build:
-   - **Framework preset:** None
-   - **Build command:** để TRỐNG
-   - **Build output directory:** `public` (khớp `pages_build_output_dir` trong `wrangler.toml`)
-4. Bấm **Save and Deploy**. Vài phút sau có địa chỉ `https://TEN-DU-AN.pages.dev`.
-   Cloudflare tự nhận thư mục `functions/` thành các API `/api/*`.
+2. Vào https://dash.cloudflare.com → **Workers & Pages** → **Create** → **Workers** →
+   **Connect to Git** (hoặc **Import a repository**), chọn repo.
+3. Ở phần build: để **Build command** TRỐNG. Deploy command mặc định là `npx wrangler deploy`.
+   `wrangler.toml` đã khai báo `main` và static assets nên không cần chỉnh thêm.
+4. Bấm **Save and Deploy**. Vài phút sau có địa chỉ `https://TEN-DU-AN.TEN-ACCOUNT.workers.dev`.
 
-   > Lưu ý: PHẢI tạo kiểu **Pages**, không phải **Workers**. Nếu lỡ tạo Worker,
-   > build chạy `wrangler deploy` và báo lỗi "`functions` directory ... looks like a
-   > Cloudflare Pages project". File `wrangler.toml` (có `pages_build_output_dir`) đã
-   > khai báo đây là Pages để build chạy đúng `wrangler pages deploy ./public`.
+   > Vì sao từng lỗi: khi repo còn thư mục `functions/` + file tĩnh ở gốc mà KHÔNG có
+   > `wrangler.toml`, `wrangler deploy` tưởng đây là Pages project và dừng với lỗi
+   > "`functions` directory ... looks like a Cloudflare Pages project". Nay mọi thứ gói trong
+   > một Worker (`src/index.js`) + `wrangler.toml` nên `wrangler deploy` chạy thẳng.
 
 ### Cách B — tải thẳng bằng Wrangler (không cần Git)
 
 ```
-npx wrangler pages deploy ./public
+npx wrangler deploy
 ```
 
-Làm theo hướng dẫn đăng nhập; chọn/tạo project. Xong sẽ in ra địa chỉ `*.pages.dev`.
+Làm theo hướng dẫn đăng nhập; chọn/tạo Worker. Xong sẽ in ra địa chỉ `*.workers.dev`.
 
 ## 6. Kiểm tra thủ công site đã chạy (manual verification)
 
-Sau khi deploy, mở `https://TEN-DU-AN.pages.dev` và kiểm theo thứ tự. Nếu bước nào hỏng, xem
+Sau khi deploy, mở `https://TEN-DU-AN.workers.dev` và kiểm theo thứ tự. Nếu bước nào hỏng, xem
 mục 8 (xử lý sự cố).
 
-1. **Function sống chưa:** mở thẳng `https://TEN-DU-AN.pages.dev/api/search?q=test`.
+1. **Function sống chưa:** mở thẳng `https://TEN-DU-AN.workers.dev/api/search?q=test`.
    - Mong đợi: JSON `{"items":[...]}` có vài bài.
    - Nếu ra `{"error":"upstream_failed"}` (mã 502): các instance Piped mặc định đang hỏng → xem mục 7 để đổi.
 2. **Tìm bài:** ở trang, gõ tên một bài hát rồi bấm **Tìm**. Phải thấy danh sách kết quả.
@@ -113,7 +110,7 @@ mục 8 (xử lý sự cố).
    Danh sách bên phải phải đầy bài và tự phát bài đầu.
 6. **Điều khiển:** thử ⏮ ⏯ ⏭, **Trộn**, **Lặp**.
 7. **Nhớ trạng thái:** tải lại trang (F5). Danh sách và bài hiện tại còn đó (không tự phát — đúng).
-8. **Chạy sau tường lửa:** mở site bằng máy trong mạng công ty. Vì trang chỉ gọi `*.pages.dev`,
+8. **Chạy sau tường lửa:** mở site bằng máy trong mạng công ty. Vì trang chỉ gọi `*.workers.dev`,
    không gọi `youtube.com`/`googleapis.com`, nên không dính 403 như trước.
 
 Kiểm nhanh bằng DevTools (F12 → tab **Network**): mọi request phải tới chính domain của bạn
@@ -146,7 +143,7 @@ không phải host giao diện.
 - **`/api/proxy` trả 403 "Host not allowed":** đúng là tính năng an toàn — proxy chỉ cho tải từ
   googlevideo / pipedproxy / tên miền instance đã cấu hình. Nếu đổi sang instance có domain proxy
   lạ, thêm instance đó vào `PIPED_INSTANCES` để domain của nó được cho phép.
-- **Mạng công ty vẫn chặn:** kiểm tra tường lửa có chặn cả `*.pages.dev` không. Nếu có, gắn
+- **Mạng công ty vẫn chặn:** kiểm tra tường lửa có chặn cả `*.workers.dev` không. Nếu có, gắn
   **tên miền riêng** cho project Pages (Settings → Custom domains) rồi dùng tên miền đó.
 
 ## 9. An toàn
