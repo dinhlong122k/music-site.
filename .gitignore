@@ -1,0 +1,7 @@
+# Phòng trường hợp có file cấu hình local chứa key: không bao giờ đưa lên repo.
+.env
+.env.*
+config.local.js
+*.local.js
+*.key
+node_modules/

@@ -1,0 +1,10 @@
+{
+  "name": "music-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Website nghe nhạc tĩnh dùng YouTube. File này chỉ để chạy test bằng node --test, không có dependency.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
