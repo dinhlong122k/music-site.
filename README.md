@@ -117,34 +117,49 @@ Kiểm nhanh bằng DevTools (F12 → tab **Network**): mọi request phải t�
 (`/api/search`, `/api/stream`, `/api/proxy`). Không được có request thẳng tới `googlevideo.com`
 hay `youtube.com` từ trình duyệt.
 
-## 7. Đổi máy chủ Piped mà không sửa code
+## 7. Đổi máy chủ nguồn (Piped / Invidious) mà không sửa code
 
-Các instance Piped công cộng hay sập/bảo trì. Nếu `/api/search` trả 502, đổi danh sách bằng
-biến môi trường (không cần sửa code, không cần deploy lại code):
+Worker lấy dữ liệu từ HAI hệ máy chủ công cộng độc lập: **Piped** và **Invidious**. Mỗi lần gọi,
+nó hỏi song song mọi instance (mỗi cái chờ tối đa 6 giây) và dùng cái trả dữ liệu hợp lệ đầu tiên.
+Instance công cộng hay sập hoặc chặn IP của Cloudflare. Nếu `/api/*` trả 502, đổi danh sách bằng
+biến môi trường (không cần sửa code):
 
-1. Dashboard Cloudflare → project Pages của bạn → **Settings** → **Variables and Secrets**
-   (môi trường **Production**).
-2. Thêm biến tên **`PIPED_INSTANCES`**, giá trị là các URL API ngăn cách bằng dấu phẩy, ví dụ:
+1. Dashboard Cloudflare → **Workers & Pages** → Worker của bạn → **Settings** →
+   **Variables and Secrets**.
+2. Thêm một hoặc cả hai biến, giá trị là các URL API ngăn cách bằng dấu phẩy:
 
    ```
-   https://pipedapi.kavin.rocks,https://pipedapi.adminforge.de
+   PIPED_INSTANCES     = https://pipedapi.kavin.rocks,https://api.piped.private.coffee
+   INVIDIOUS_INSTANCES = https://inv.nadeko.net,https://invidious.nerdvpn.de
    ```
 
-3. **Save**, rồi **Retry deployment** (hoặc deploy lại) để biến có hiệu lực.
+   Biến nào có giá trị sẽ THAY danh sách mặc định của loại đó; biến trống thì dùng mặc định.
+3. **Save and deploy** để biến có hiệu lực.
 
-Danh sách instance đang sống xem ở: https://github.com/TeamPiped/documentation (hoặc trang
-uptime của TeamPiped). Nhớ dùng host **API** (thường bắt đầu bằng `pipedapi.` hoặc `api.`),
-không phải host giao diện.
+Danh sách instance đang sống:
+
+- Piped: https://piped-instances.kavin.rocks — dùng host **API** (thường bắt đầu bằng `pipedapi.`
+  hoặc `api.`), không phải host giao diện.
+- Invidious: https://api.invidious.io — chọn instance có cột **API** bật. Instance phải cho phép
+  phát qua server (`local=true`), vì link googlevideo của Invidious bị khoá theo IP server của nó.
 
 ## 8. Xử lý sự cố
 
+- **`/api/stream` (hoặc search/playlist) trả 502:** mở thẳng
+  `https://TEN-DU-AN.workers.dev/api/stream?id=dQw4w9WgXcQ` và đọc mảng `details`. Mỗi dòng là
+  lý do một instance hỏng:
+  - `HTTP 403` / `HTTP 429`: instance chặn IP Cloudflare → bỏ nó, thêm instance khác (mục 7).
+  - `Timeout` / lỗi kết nối: instance chết → bỏ nó.
+  - `HTTP 500` hoặc "Không có dữ liệu dùng được": instance bị YouTube chặn tạm → thử lại sau.
 - **Tìm được bài nhưng không phát (lỗi "không phát được"):** instance trả được metadata nhưng
-  luồng audio hỏng. Thử lại, hoặc đổi `PIPED_INSTANCES` (mục 7).
-- **`/api/proxy` trả 403 "Host not allowed":** đúng là tính năng an toàn — proxy chỉ cho tải từ
-  googlevideo / pipedproxy / tên miền instance đã cấu hình. Nếu đổi sang instance có domain proxy
-  lạ, thêm instance đó vào `PIPED_INSTANCES` để domain của nó được cho phép.
+  luồng audio hỏng (với Invidious thường do instance tắt `local=true`). Xem trường `source` trong
+  JSON của `/api/stream` để biết instance nào, rồi bỏ nó khỏi danh sách (mục 7).
+- **`/api/proxy` trả 403 "Host not allowed" / "Redirect host not allowed":** đúng là tính năng an
+  toàn — proxy chỉ cho tải từ googlevideo / pipedproxy / tên miền instance đã cấu hình (kiểm cả
+  sau mỗi redirect). Nếu instance có domain proxy lạ, thêm domain đó vào `PIPED_INSTANCES` hoặc
+  `INVIDIOUS_INSTANCES` để được cho phép.
 - **Mạng công ty vẫn chặn:** kiểm tra tường lửa có chặn cả `*.workers.dev` không. Nếu có, gắn
-  **tên miền riêng** cho project Pages (Settings → Custom domains) rồi dùng tên miền đó.
+  **tên miền riêng** cho Worker (Settings → Domains & Routes) rồi dùng tên miền đó.
 
 ## 9. An toàn
 

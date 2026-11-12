@@ -1,5 +1,7 @@
-// search.js - GET /api/search?q=... : tìm bài hát qua Piped, trả danh sách đã chuẩn hoá.
-import { pipedGetJson, mapStreamList, json } from './_piped.js';
+// search.js - GET /api/search?q=... : tìm bài hát qua Piped/Invidious, trả danh sách đã chuẩn hoá.
+import {
+  upstreamTry, upstreamFailed, mapStreamList, mapInvidiousVideos, json,
+} from './_piped.js';
 
 const MAX_RESULTS = 20;
 
@@ -11,11 +13,22 @@ export async function onRequestGet(context) {
     return json({ error: 'missing_query' }, 400);
   }
 
+  const q = encodeURIComponent(query.trim());
   try {
-    const path = `/search?q=${encodeURIComponent(query.trim())}&filter=music_songs`;
-    const data = await pipedGetJson(context.env, path);
-    return json({ items: mapStreamList(data && data.items).slice(0, MAX_RESULTS) });
-  } catch {
-    return json({ error: 'upstream_failed' }, 502);
+    const { result, provider } = await upstreamTry(
+      context.env,
+      {
+        piped: `/search?q=${q}&filter=music_songs`,
+        invidious: `/api/v1/search?q=${q}&type=video`,
+      },
+      {
+        // Sai cấu trúc (không phải mảng) => coi instance đó hỏng. Mảng rỗng vẫn hợp lệ.
+        piped: (data) => (data && Array.isArray(data.items) ? mapStreamList(data.items) : null),
+        invidious: (data) => (Array.isArray(data) ? mapInvidiousVideos(data) : null),
+      },
+    );
+    return json({ source: provider.base, items: result.slice(0, MAX_RESULTS) });
+  } catch (err) {
+    return upstreamFailed(err);
   }
 }

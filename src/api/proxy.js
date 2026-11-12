@@ -3,11 +3,12 @@
 // Đây là chỗ vượt tường lửa: trình duyệt tải nhạc từ /api/proxy (cùng domain với trang),
 // không phải từ googlevideo.com. Hỗ trợ header Range để tua (seek) mượt mà.
 //
-// AN TOÀN: chỉ proxy tới host trong danh sách cho phép (googlevideo / pipedproxy / instance Piped),
+// AN TOÀN: chỉ proxy tới host trong danh sách cho phép (googlevideo / pipedproxy / instance Piped/Invidious),
 // nếu không đây sẽ thành "proxy mở" cho kẻ xấu mượn domain của bạn.
 import { buildProxyHostMatcher, UA } from './_piped.js';
 
 const PASS_THROUGH = ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges'];
+const MAX_REDIRECTS = 3;
 
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
@@ -31,9 +32,21 @@ export async function onRequestGet(context) {
   if (range) forward.set('Range', range);
   forward.set('User-Agent', UA);
 
+  // Tự theo redirect (Invidious /latest_version trả 302 sang /videoplayback) và kiểm host ở
+  // MỖI bước, để kẻ xấu không lách allowlist bằng một redirect sang host lạ.
   let upstream;
+  let current = parsed;
   try {
-    upstream = await fetch(parsed.toString(), { method: 'GET', headers: forward });
+    for (let hop = 0; ; hop += 1) {
+      upstream = await fetch(current.toString(), { method: 'GET', headers: forward, redirect: 'manual' });
+      const location = upstream.headers.get('Location');
+      if (upstream.status < 300 || upstream.status >= 400 || !location) break;
+      if (hop >= MAX_REDIRECTS) return new Response('Too many redirects', { status: 502 });
+      current = new URL(location, current);
+      if (current.protocol !== 'https:' || !isAllowed(current.hostname)) {
+        return new Response('Redirect host not allowed', { status: 403 });
+      }
+    }
   } catch (err) {
     return new Response('Upstream fetch error: ' + err.message, { status: 502 });
   }
