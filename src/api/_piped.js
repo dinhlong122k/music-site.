@@ -11,19 +11,31 @@
 
 // Danh sách mặc định. Có thể ghi đè bằng biến môi trường (URL ngăn cách bằng dấu phẩy):
 //   PIPED_INSTANCES, INVIDIOUS_INSTANCES — KHÔNG phải sửa code.
+// Nguồn: danh sách chính thức của TeamPiped/documentation và iv-org/documentation (11/2026).
+// Gọi song song nên thêm instance không làm chậm (instance nhanh nhất thắng).
 const DEFAULT_PIPED = [
   'https://pipedapi.kavin.rocks',
+  'https://pipedapi-libre.kavin.rocks',
   'https://api.piped.private.coffee',
   'https://pipedapi.adminforge.de',
   'https://pipedapi.leptons.xyz',
   'https://pipedapi.reallyaweso.me',
   'https://api.piped.yt',
+  'https://pipedapi.nosebs.ru',
+  'https://piped-api.privacy.com.de',
+  'https://pipedapi.drgns.space',
+  'https://pipedapi.owo.si',
+  'https://pipedapi.ducks.party',
+  'https://piped-api.codespace.cz',
+  'https://pipedapi.darkness.services',
+  'https://pipedapi.orangenet.cc',
 ];
 
 const DEFAULT_INVIDIOUS = [
   'https://yt.chocolatemoo53.com',
   'https://inv.nadeko.net',
   'https://invidious.nerdvpn.de',
+  'https://invidious.tiekoetter.com',
   'https://yewtu.be',
 ];
 
