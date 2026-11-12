@@ -10,6 +10,11 @@ import { buildProxyHostMatcher, UA } from './_piped.js';
 const PASS_THROUGH = ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges'];
 const MAX_REDIRECTS = 3;
 
+function isMediaType(type) {
+  return type.startsWith('audio/') || type.startsWith('video/')
+    || type.startsWith('application/octet-stream');
+}
+
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const target = url.searchParams.get('url');
@@ -49,6 +54,17 @@ export async function onRequestGet(context) {
     }
   } catch (err) {
     return new Response('Upstream fetch error: ' + err.message, { status: 502 });
+  }
+
+  // CHỈ chuyển tiếp nội dung âm thanh/video. Upstream lỗi hay trả trang HTML (trang lỗi của
+  // instance, trang chặn...) thì KHÔNG đưa nguyên trang đó ra domain của mình: trang HTML
+  // hiện trên domain mình sẽ tự tải tài nguyên ngoài (vd fonts.googleapis.com) và chạy script lạ.
+  const upstreamType = (upstream.headers.get('Content-Type') || '').toLowerCase();
+  if (upstream.status !== 200 && upstream.status !== 206) {
+    return new Response(`Upstream HTTP ${upstream.status}`, { status: 502 });
+  }
+  if (upstreamType && !isMediaType(upstreamType)) {
+    return new Response('Upstream returned non-media content', { status: 502 });
   }
 
   const headers = new Headers();

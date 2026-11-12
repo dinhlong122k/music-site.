@@ -21,6 +21,7 @@ const DEFAULT_PIPED = [
 ];
 
 const DEFAULT_INVIDIOUS = [
+  'https://yt.chocolatemoo53.com',
   'https://inv.nadeko.net',
   'https://invidious.nerdvpn.de',
   'https://yewtu.be',

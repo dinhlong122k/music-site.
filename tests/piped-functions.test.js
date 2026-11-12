@@ -253,3 +253,36 @@ test('/api/proxy: theo redirect trong allowlist, chặn redirect sang host lạ'
   const bad = await proxyGet(req('/api/proxy?url=' + encodeURIComponent('https://i.test/bad')));
   assert.equal(bad.status, 403);
 });
+
+test('/api/proxy: upstream trả trang HTML hoặc lỗi -> 502, không chuyển nguyên trang', async (t) => {
+  t.after(mockFetch({
+    'https://i.test/html': () => new Response('<link href="https://fonts.googleapis.com/css">', {
+      status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    }),
+    'https://i.test/err': () => new Response('<h1>Forbidden</h1>', {
+      status: 403, headers: { 'Content-Type': 'text/html' },
+    }),
+  }));
+  for (const path of ['html', 'err']) {
+    const res = await proxyGet(req('/api/proxy?url=' + encodeURIComponent(`https://i.test/${path}`)));
+    assert.equal(res.status, 502);
+    assert.ok(!(await res.text()).includes('googleapis'));
+  }
+});
+
+import worker from '../src/index.js';
+
+test('Worker: mọi response có CSP header (trang tĩnh và /api/*)', async () => {
+  const env = {
+    ...ENV,
+    ASSETS: { fetch: async () => new Response('<html></html>', { headers: { 'Content-Type': 'text/html' } }) },
+  };
+  const page = await worker.fetch(new Request('https://site.test/'), env);
+  assert.match(page.headers.get('Content-Security-Policy'), /style-src 'self'/);
+  assert.match(page.headers.get('Content-Security-Policy'), /font-src 'self'/);
+  assert.equal(page.headers.get('X-Content-Type-Options'), 'nosniff');
+
+  const api = await worker.fetch(new Request('https://site.test/api/stream'), env);
+  assert.equal(api.status, 400);
+  assert.match(api.headers.get('Content-Security-Policy'), /default-src 'none'.*sandbox/);
+});
