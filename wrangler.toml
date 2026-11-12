@@ -1,0 +1,7 @@
+name = "music-site"
+compatibility_date = "2026-11-12"
+
+# Dòng này báo cho Cloudflare biết đây là project Pages (không phải Workers).
+# Nhờ nó, Git build chạy `wrangler pages deploy ./public` thay vì `wrangler deploy`.
+# File tĩnh nằm trong ./public; Pages Functions nằm ở thư mục ./functions tại gốc repo.
+pages_build_output_dir = "./public"

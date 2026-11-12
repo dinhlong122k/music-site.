@@ -1,7 +1,7 @@
 // Test cho js/validate.js: kiểm tra ID, URL ảnh và tạo bài hát an toàn.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isValidId, isSafeThumbnailUrl, makeTrack } from '../js/validate.js';
+import { isValidId, isSafeThumbnailUrl, makeTrack } from '../public/js/validate.js';
 
 test('isValidId: chấp nhận chữ, số, gạch dưới, gạch ngang', () => {
   assert.equal(isValidId('dQw4w9WgXcQ'), true);

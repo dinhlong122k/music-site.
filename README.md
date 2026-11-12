@@ -28,16 +28,18 @@ Trình duyệt (chỉ gọi *.pages.dev)
 
 | File | Việc của nó |
 | --- | --- |
-| `index.html` | Khung trang và CSP (chỉ cho tải/kết nối cùng domain) |
-| `css/style.css` | Giao diện hai cột |
-| `js/app.js` | Khởi động, nối các phần với nhau |
-| `js/piped-api.js` | Gọi `/api/*` (cùng domain), đổi lỗi thành tiếng Việt |
-| `js/player.js` | Bọc thẻ `<audio>` HTML5 |
-| `js/ui.js` | Vẽ giao diện, gắn sự kiện (chỉ `textContent`, không `innerHTML`) |
-| `js/queue.js` | Logic danh sách phát (không đụng giao diện) |
-| `js/storage.js` | Đọc/ghi `localStorage` an toàn (danh sách + chế độ lặp) |
-| `js/validate.js` | Kiểm tra ID, tạo bài hát an toàn |
-| `js/url-parser.js` | Tách playlistId từ link YouTube |
+| `public/` | Thư mục file tĩnh Cloudflare Pages phục vụ (`pages_build_output_dir`) |
+| `public/index.html` | Khung trang và CSP (chỉ cho tải/kết nối cùng domain) |
+| `public/css/style.css` | Giao diện hai cột |
+| `public/js/app.js` | Khởi động, nối các phần với nhau |
+| `public/js/piped-api.js` | Gọi `/api/*` (cùng domain), đổi lỗi thành tiếng Việt |
+| `public/js/player.js` | Bọc thẻ `<audio>` HTML5 |
+| `public/js/ui.js` | Vẽ giao diện, gắn sự kiện (chỉ `textContent`, không `innerHTML`) |
+| `public/js/queue.js` | Logic danh sách phát (không đụng giao diện) |
+| `public/js/storage.js` | Đọc/ghi `localStorage` an toàn (danh sách + chế độ lặp) |
+| `public/js/validate.js` | Kiểm tra ID, tạo bài hát an toàn |
+| `public/js/url-parser.js` | Tách playlistId từ link YouTube |
+| `wrangler.toml` | Khai báo project Pages (`pages_build_output_dir = "./public"`) |
 | `functions/api/_piped.js` | Dùng chung: danh sách instance, gọi Piped, chuẩn hoá, chặn proxy mở |
 | `functions/api/search.js` | `GET /api/search?q=` |
 | `functions/api/stream.js` | `GET /api/stream?id=` |
@@ -59,7 +61,7 @@ Pages Functions cần `wrangler` để chạy local (chỉ mở `index.html` b�
 KHÔNG có `/api/*`, nên không phát được nhạc). Cần Node.js:
 
 ```
-npx wrangler pages dev .
+npx wrangler pages dev ./public
 ```
 
 Mở địa chỉ mà lệnh in ra (thường `http://localhost:8788`). Lệnh này chạy cả trang tĩnh lẫn các
@@ -77,14 +79,19 @@ Không có bước build. Có hai cách; chọn một.
 3. Ở phần build:
    - **Framework preset:** None
    - **Build command:** để TRỐNG
-   - **Build output directory:** `/` (thư mục gốc repo)
+   - **Build output directory:** `public` (khớp `pages_build_output_dir` trong `wrangler.toml`)
 4. Bấm **Save and Deploy**. Vài phút sau có địa chỉ `https://TEN-DU-AN.pages.dev`.
    Cloudflare tự nhận thư mục `functions/` thành các API `/api/*`.
+
+   > Lưu ý: PHẢI tạo kiểu **Pages**, không phải **Workers**. Nếu lỡ tạo Worker,
+   > build chạy `wrangler deploy` và báo lỗi "`functions` directory ... looks like a
+   > Cloudflare Pages project". File `wrangler.toml` (có `pages_build_output_dir`) đã
+   > khai báo đây là Pages để build chạy đúng `wrangler pages deploy ./public`.
 
 ### Cách B — tải thẳng bằng Wrangler (không cần Git)
 
 ```
-npx wrangler pages deploy .
+npx wrangler pages deploy ./public
 ```
 
 Làm theo hướng dẫn đăng nhập; chọn/tạo project. Xong sẽ in ra địa chỉ `*.pages.dev`.

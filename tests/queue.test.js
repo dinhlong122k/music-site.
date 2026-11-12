@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createQueue, addTrack, removeAt, setCurrent, replaceItems,
   getNextIndex, getPrevIndex, shuffleQueue, nextRepeatMode, decideAfterError,
-} from '../js/queue.js';
+} from '../public/js/queue.js';
 
 const t = (id) => ({ videoId: id, title: id, channel: 'c', thumbnail: '' });
 const make = (ids, currentIndex = 0, repeat = 'off') =>

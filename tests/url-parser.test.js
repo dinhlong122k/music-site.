@@ -1,7 +1,7 @@
 // Test cho js/url-parser.js: tách playlistId từ nhiều dạng link.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extractPlaylistId } from '../js/url-parser.js';
+import { extractPlaylistId } from '../public/js/url-parser.js';
 
 const ID = 'PLabc_123-XYZ';
 

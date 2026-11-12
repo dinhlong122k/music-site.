@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   mapHttpError, NETWORK_ERROR_MESSAGE, ApiError,
   searchTracks, fetchPlaylistTracks, fetchStreamUrl,
-} from '../js/piped-api.js';
+} from '../public/js/piped-api.js';
 
 const realFetch = globalThis.fetch;
 

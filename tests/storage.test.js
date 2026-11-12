@@ -1,7 +1,7 @@
 // Test cho js/storage.js: đọc danh sách/chế độ lặp từ localStorage (giả bằng globalThis).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadQueue, loadRepeat, saveQueue } from '../js/storage.js';
+import { loadQueue, loadRepeat, saveQueue } from '../public/js/storage.js';
 
 const realLocalStorage = globalThis.localStorage;
 
